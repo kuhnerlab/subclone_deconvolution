@@ -223,6 +223,7 @@ def makeTreesets(alltrees):
     treesets = {}
     for label in alltrees:
         if "all" in label:
+            #LS DEBUG:  REMOVE THIS WHEN WE GET T3 DATA!!
             continue
         treesets[label] = Treeset(alltrees[label])
     return treesets
@@ -252,14 +253,22 @@ difffile.write("\n")
 
 
 for label in treesets:
+    #calculate the average signature per patient:
     avgfile.write(label)
-    difffile.write(label)
     treeset = treesets[label]
     sigavgs = treeset.calculateAvgAll()
     for sigavg in sigavgs:
         avgfile.write("\t" + str(sigavg))
     avgfile.write("\n")
     print(str(sigavgs))
+    
+    #Calculate the trajectory of every signature in the patient, i.e.
+    # test whether it goes up or down as you go from root to tip.
+    #
+    #The 'significance' is the percentage of randomized trials
+    # that produced the same or a more extreme value for that signature.
+    # A value of '1' means all the values were the same.
+    difffile.write(label)
     diffavgs, diff_significance = treeset.calculateUpTrajectories()
     print(str(diffavgs))
     print(str(diff_significance))
