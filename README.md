@@ -10,6 +10,8 @@ Required data files/directories (not included):
 * lucian_from_kanika.csv	List of every called mutation in every sample.
 * noninteger_processed_CNs/	Directory containing CNV calls for every sample.
 * signature_probabilities/all_muts_with_signature_probabilities.txt	File with mutation signature assignments per mutation.
+* final_trees/  Directory containing deconvoluted Newick trees.
+* final_optim/  Directory containing 'optim' input files.
 
 
 To perform all the mutation signature analysis, run the following Python scripts in this order:
