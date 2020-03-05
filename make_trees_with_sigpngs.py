@@ -25,6 +25,11 @@ somepatients = ["42"]
 
 treedir = "branch_lengths/"
 sigpngdir = "signature_pngs/"
+treesigdir = "trees_with_signatures/"
+
+if not path.isdir(treesigdir):
+    mkdir(treesigdir)
+
 
 def loadBranchSignaturePngs():
     sigpngs = {}
@@ -105,4 +110,4 @@ for file in treefiles:
         if len(trees)>1:
             filename += "_" + str(index)
         filename += ".png"
-        tree.render(treedir + "signatures/" + filename, tree_style = ts)
+        tree.render(treesigdir + filename, tree_style = ts)

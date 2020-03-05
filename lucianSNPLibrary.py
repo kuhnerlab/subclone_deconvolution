@@ -1157,7 +1157,7 @@ def getCanonicalAscatCallsFor(patient):
     print("Unknown patient")
     return []
 
-def getBestPloidyFor(patient, sample, challenge=True):
+def getBestPloidyFor(patient, sample, challenge=False):
     oddsfile = "calling_evidence_odds.tsv"
     if challenge:
         oddsfile = "calling_evidence_challenge_inc_odds.tsv"
