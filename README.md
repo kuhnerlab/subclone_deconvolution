@@ -12,7 +12,7 @@ Required data files/directories (not included):
 * signature_probabilities/all_muts_with_signature_probabilities.txt	File with mutation signature assignments per mutation.
 
 
-To run and create everything, run the python scripts in the following order:
+To perform all the mutation signature analysis, run the following Python scripts in this order:
 
 * branch_lengths_and_signature_calculator.py
 * assign_branch_signatures.py
