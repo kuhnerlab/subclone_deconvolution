@@ -29,51 +29,60 @@ somepatients = ["1005"]
 treedir = "branch_lengths/"
 sigfile = "branch_signatures/all_signatures.tsv"
 
+splitstoo = False
+ntries = 10000
+
+#output files:
+avgout = "average_sigs.tsv"
+sigdiffs = "sig_diffs.tsv"
+pairdists = "pair_distances.tsv"
+
+if splitstoo:
+    avgout = "average_sigs_splitstoo.tsv"
+    sigdiffs = "sig_diffs_splitstoo.tsv"
+    pairdists = "pair_distances_splitstoo.tsv"
 
 
 class Treeset:
-    def __init__(self, treelist):
+    def __init__(self, treelist, splits=True):
         self.treelist = treelist
-        self.branchlist_nosplits = []
-        self.branchlist_splits = []
-        nosplit_index = 0
-        split_index = 0
+        self.branchlist = []
+        self.allbranches = []
+        self.ntries = ntries
+        index = 0
         indexmap = {}
         for tree in treelist:
             for branch in tree.traverse():
+                self.allbranches.append(branch)
                 if hasattr(branch, "sigs"):
                     if "-" in branch.name:
-                        branch.nosplit_index = -1
-                        if "-1" in branch.name:
-                            self.branchlist_splits.append(branch);
-                            branch.split_index = split_index
-                            sampleid = branch.name.split("-")[0]
-                            indexmap[sampleid] = split_index
-                            split_index += 1
+                        if splits:
+                            if "-1" in branch.name:
+                                self.branchlist.append(branch);
+                                branch.index = index
+                                sampleid = branch.name.split("-")[0]
+                                indexmap[sampleid] = index
+                                index += 1
+                        else:
+                            branch.index = -1
                     else:
-                        self.branchlist_nosplits.append(branch)
-                        self.branchlist_splits.append(branch)
-                        branch.split_index = split_index
-                        branch.nosplit_index = nosplit_index
-                        split_index += 1
-                        nosplit_index += 1
+                        self.branchlist.append(branch)
+                        branch.index = index
+                        index += 1
                 else:
-                    branch.nosplit_index = -1
-                    branch.split_index = -1
-        for tree in treelist:
-            for tip in tree:
-                if "-" in tip.name and "-1" not in tip.name:
-                    sampleid = tip.name.split("-")[0]
-                    tip.split_index = indexmap[sampleid]
+                    branch.index = -1
+        if splits:
+            for tree in treelist:
+                for tip in tree:
+                    if "-" in tip.name and "-1" not in tip.name:
+                        sampleid = tip.name.split("-")[0]
+                        tip.index = indexmap[sampleid]
         #Just to check:
-        for n, branch in enumerate(self.branchlist_splits):
-            assert(branch.split_index == n)
-        for n, branch in enumerate(self.branchlist_nosplits):
-            assert(branch.nosplit_index == n)
+        for n, branch in enumerate(self.branchlist):
+            assert(branch.index == n)
         for tree in self.treelist:
             for branch in tree.traverse():
-                assert(hasattr(branch, "split_index"))
-                assert(hasattr(branch, "nosplit_index"))
+                assert(hasattr(branch, "index"))
 
     def getUpWithSigs(self, branch):
         up = branch.up
@@ -81,21 +90,15 @@ class Treeset:
             return self.getUpWithSigs(up)
         return up
     
-    def calculateAvgAll(self):
+    def calculateAvg(self):
         allsigs = []
-        for branch in self.branchlist_splits:
-            allsigs.append(branch.sigs)
-        return np.average(allsigs, axis=0)
-    
-    def calculateAvgNosplits(self):
-        allsigs = []
-        for branch in self.branchlist_nosplits:
+        for branch in self.branchlist:
             allsigs.append(branch.sigs)
         return np.average(allsigs, axis=0)
     
     def calculateOneUpTrajectory(self, splitvec=None):
         if not splitvec:
-            splitvec = list(range(len(self.branchlist_splits)))
+            splitvec = list(range(len(self.branchlist)))
         alldiffs = []
         for tree in alltrees[label]:
             for branch in tree.traverse():
@@ -103,22 +106,23 @@ class Treeset:
                     continue
                 upbranch = self.getUpWithSigs(branch)
                 if upbranch:
-                    branchsigs = self.branchlist_splits[splitvec[branch.split_index]].sigs
-                    upsigs = self.branchlist_splits[splitvec[upbranch.split_index]].sigs
+                    branchsigs = self.branchlist[splitvec[branch.index]].sigs
+                    upsigs = self.branchlist[splitvec[upbranch.index]].sigs
                     alldiffs.append(np.subtract(branchsigs, upsigs))
-        return np.average(alldiffs, axis=0)
-    
+        return np.sum(alldiffs, axis=0), len(alldiffs)
+
     def calculateUpTrajectories(self):
-        ntries = 100000
-        canonical = self.calculateOneUpTrajectory()
+        canonical, ndiffs = self.calculateOneUpTrajectory()
         nlarger = np.zeros(len(canonical))
         nsmaller = np.zeros(len(canonical))
         nsame = np.zeros(len(canonical))
         significance = np.zeros(len(canonical))
-        for n in range(ntries):
-            splitvec = list(range(len(self.branchlist_splits)))
+        shuffled = []
+        for n in range(self.ntries):
+            splitvec = list(range(len(self.branchlist)))
             random.shuffle(splitvec)
-            diffrand = self.calculateOneUpTrajectory(splitvec=splitvec)
+            diffrand, __ = self.calculateOneUpTrajectory(splitvec=splitvec)
+            shuffled.append(diffrand)
             for n in range(len(canonical)):
                 if diffrand[n] < canonical[n]:
                     nsmaller[n] += 1
@@ -127,26 +131,104 @@ class Treeset:
                 else:
                     nsame[n] += 1
         for n in range(len(significance)):
-            significance[n] = (min(nlarger[n], nsmaller[n]) + nsame[n])/ntries
-        return canonical, significance
+            significance[n] = significanceTwoTailed(nlarger[n], nsmaller[n], nsame[n], self.ntries)
+        return canonical, significance, shuffled, ndiffs
+
+    def getAbsDistance(self, b1sigs, b2sigs):
+        tot = 0
+        for n in range(len(b1sigs)):
+            tot += abs(b1sigs[n] - b2sigs[n])
+        return tot
     
-    def calculateAverageAndTrajectories(alltrees):
-        sigavgs = {}
-        diffavgs = {}
-        for label in alltrees:
-            allsigs = []
-            alldiffs = []
-            for tree in alltrees[label]:
-                for branch in tree.traverse():
-                    if hasattr(branch, "sigs"):
-                        allsigs.append(branch.sigs)
-                    if hasattr(branch, "sigdiff"):
-                        alldiffs.append(branch.sigdiff)
-            sigavgs[label] = np.average(allsigs, axis=0)
-            diffavgs[label] = np.average(alldiffs, axis=0)
-        return sigavgs, diffavgs
-    
+    def getSqDistance(self, b1sigs, b2sigs):
+        tot = 0
+        for n in range(len(b1sigs)):
+            tot += pow(b1sigs[n] - b2sigs[n], 2)
+        return tot
         
+
+    def sortOnePairDistance(self, splitvec=None):
+        if not splitvec:
+            splitvec = list(range(len(self.branchlist)))
+        absdistances = {}
+        sqdistances = {}
+        for d in [absdistances, sqdistances]:
+            d["ancestral"] = []
+            d["skew"] = []
+        for b1 in range(len(self.allbranches)):
+            branch1 = self.allbranches[b1]
+            if (branch1.index==-1):
+                continue
+            for b2 in range(b1+1, len(self.allbranches)):
+                branch2 = self.allbranches[b2]
+                if (branch2.index==-1):
+                    continue
+                tree = branch1.get_tree_root()
+                disttype = "skew"
+                try:
+                    common = tree.get_common_ancestor(branch1, branch2)
+                    if common==branch1 or common==branch2:
+                        disttype = "ancestral"
+                    else:
+                        disttype = "skew"
+                except:
+                    pass
+                b1sigs = self.branchlist[splitvec[branch1.index]].sigs
+                b2sigs = self.branchlist[splitvec[branch2.index]].sigs
+                absdistances[disttype].append(self.getAbsDistance(b1sigs, b2sigs))
+                sqdistances[disttype].append(self.getSqDistance(b1sigs, b2sigs))
+        distances = {}
+        npairs = {}
+        for stype in absdistances:
+            distances[stype + "_abs"] = np.sum(absdistances[stype])
+            npairs[stype + "_abs"] = len(absdistances[stype])
+        for stype in sqdistances:
+            distances[stype + "_sq"] = np.sum(sqdistances[stype])
+            npairs[stype + "_sq"] = len(absdistances[stype])
+        return distances, npairs
+
+    def sortPairDistances(self):
+        canonical, npairs = self.sortOnePairDistance()
+        shuffled = {}
+        nlarger = {}
+        nsmaller = {}
+        nsame = {}
+        significance = {}
+        for stype in canonical:
+            nlarger[stype] = 0
+            nsmaller[stype] = 0
+            nsame[stype] = 0
+            significance[stype] = 0
+            shuffled[stype] = []
+        for n in range(self.ntries):
+            splitvec = list(range(len(self.branchlist)))
+            random.shuffle(splitvec)
+            distrand, __ = self.sortOnePairDistance(splitvec=splitvec)
+            for stype in canonical:
+                if distrand[stype] < canonical[stype]:
+                    nsmaller[stype] += 1
+                elif distrand[stype] > canonical[stype]:
+                    nlarger[stype] += 1
+                else:
+                    nsame[stype] += 1
+                shuffled[stype].append(distrand[stype])
+        for stype in significance:
+            significance[stype] = significanceTwoTailed(nlarger[stype], nsmaller[stype], nsame[stype], self.ntries)
+        return canonical, significance, shuffled, npairs
+
+    def getNBranches(self):
+        return len(self.branchlist)
+
+def significanceOneTailed(nlarger, nsmaller, nsame, ntries):
+    same_rnd = random.randint(0,nsame)
+    pos = min(nlarger, nsmaller) + same_rnd
+    if pos*2>ntries:
+        pos = ntries-pos
+    return pos/ntries
+
+def significanceTwoTailed(nlarger, nsmaller, nsame, ntries):
+    return 2*significanceOneTailed(nlarger, nsmaller, nsame, ntries)
+
 
 
 
@@ -219,13 +301,13 @@ def readAndStoreSignatures(alltrees):
     return sigids
 
 
-def makeTreesets(alltrees):
+def makeTreesets(alltrees, splits=True):
     treesets = {}
     for label in alltrees:
         if "all" in label:
             #LS DEBUG:  REMOVE THIS WHEN WE GET T3 DATA!!
             continue
-        treesets[label] = Treeset(alltrees[label])
+        treesets[label] = Treeset(alltrees[label], splits=splits)
     return treesets
 
 
@@ -236,31 +318,61 @@ def makeTreesets(alltrees):
 
 alltrees = readTrees()
 sigids = readAndStoreSignatures(alltrees)
-treesets = makeTreesets(alltrees)
+treesets = makeTreesets(alltrees, splits=splitstoo)
 
-avgfile = open("average_sigs.tsv", "w")
+avgfile = open(avgout, "w")
 avgfile.write("Patient")
 for sigid in sigids:
     avgfile.write("\t" + sigid)
 avgfile.write("\n")
 
-difffile = open("sig_diffs.tsv", "w")
+difffile = open(sigdiffs, "w")
 difffile.write("Patient")
 for sigid in sigids:
     difffile.write("\t" + sigid)
     difffile.write("\t" + sigid + " significance")
 difffile.write("\n")
 
+stypes = ("ancestral_abs", "skew_abs", "ancestral_sq", "skew_sq")
+
+pairfile = open(pairdists, "w")
+pairfile.write("Patient")
+for stype in stypes:
+    pairfile.write("\t" + stype)
+    pairfile.write("\t" + stype + " significance")
+pairfile.write("\n")
+
+pairs_canonical_overall = {}
+shuffled_pairs_overall = {}
+for stype in stypes:
+    pairs_canonical_overall[stype] = {}
+    pairs_canonical_overall[stype]["average"] = 0
+    pairs_canonical_overall[stype]["sq_av"] = 0
+    pairs_canonical_overall[stype]["sum"] = 0
+    
+    shuffled_pairs_overall[stype] = {}
+    shuffled_pairs_overall[stype]["average"] = np.zeros(ntries)
+    shuffled_pairs_overall[stype]["sq_av"] = np.zeros(ntries)
+    shuffled_pairs_overall[stype]["sum"] = np.zeros(ntries)
+
+
+canon_trajects = {}
+canon_trajects["average"] = np.zeros(10)
+canon_trajects["sum"] = np.zeros(10)
+
+shuffled_trajects = {}
+shuffled_trajects["average"] = np.zeros((ntries,10))
+shuffled_trajects["sum"] = np.zeros((ntries,10))
 
 for label in treesets:
     #calculate the average signature per patient:
+    print("Processing", label)
     avgfile.write(label)
     treeset = treesets[label]
-    sigavgs = treeset.calculateAvgAll()
+    sigavgs = treeset.calculateAvg()
     for sigavg in sigavgs:
         avgfile.write("\t" + str(sigavg))
     avgfile.write("\n")
-    print(str(sigavgs))
     
     #Calculate the trajectory of every signature in the patient, i.e.
     # test whether it goes up or down as you go from root to tip.
@@ -269,14 +381,113 @@ for label in treesets:
     # that produced the same or a more extreme value for that signature.
     # A value of '1' means all the values were the same.
     difffile.write(label)
-    diffavgs, diff_significance = treeset.calculateUpTrajectories()
-    print(str(diffavgs))
-    print(str(diff_significance))
-    for n in range(len(diffavgs)):
-        difffile.write("\t" + str(diffavgs[n]))
-        difffile.write("\t" + str(diff_significance[n]))
+    canonical_traj, signif_traj, shuffled_traj, ndiffs = treeset.calculateUpTrajectories()
+    for nsig in range(len(canonical_traj)):
+        difffile.write("\t" + str(canonical_traj[nsig]))
+        difffile.write("\t" + str(signif_traj[nsig]))
+        canon_trajects["average"][nsig] += canonical_traj[nsig] / ndiffs
+        canon_trajects["sum"][nsig] += canonical_traj[nsig]
+        for repeat in range(treeset.ntries):
+            shuffled_trajects["average"][repeat][nsig] += shuffled_traj[repeat][nsig]/ndiffs
+            shuffled_trajects["sum"][repeat][nsig] += shuffled_traj[repeat][nsig]
     difffile.write("\n")
+    
+    #Calculate the average distance between signatures on the three types of branch pairs
+    pairfile.write(label)
+    pairsums, pair_significance, shuffled, npairs = treeset.sortPairDistances()
+    for stype in pairsums:
+        pairfile.write("\t" + str(pairsums[stype]))
+        pairfile.write("\t" + str(pair_significance[stype]))
+        pairs_canonical_overall[stype]["average"] += pairsums[stype] / npairs[stype]
+        pairs_canonical_overall[stype]["sq_av"] += pairsums[stype] / np.sqrt(npairs[stype])
+        pairs_canonical_overall[stype]["sum"] += pairsums[stype]
+        for repeat in range(treeset.ntries):
+            shuffled_pairs_overall[stype]["average"][repeat] += shuffled[stype][repeat] / npairs[stype]
+            shuffled_pairs_overall[stype]["sq_av"][repeat] += shuffled[stype][repeat] / np.sqrt(npairs[stype])
+            shuffled_pairs_overall[stype]["sum"][repeat] += shuffled[stype][repeat]
+    pairfile.write("\n")
         
     
 avgfile.close()
 difffile.close()
+pairfile.close()
+
+
+print("Overall significance of pairwise comparisons:")
+for stype in stypes:
+    print("Averages:")
+    nsmaller  = 0
+    nlarger = 0
+    nsame = 0
+    for repeat in range(ntries):
+        if shuffled_pairs_overall[stype]["average"][repeat] < pairs_canonical_overall[stype]["average"]:
+            nsmaller += 1
+        elif shuffled_pairs_overall[stype]["average"][repeat] > pairs_canonical_overall[stype]["average"]:
+            nlarger += 1
+        else:
+            nsame += 1
+    significance = significanceOneTailed(nlarger, nsmaller, nsame, ntries)
+    print(stype, ": canonical distance = ", str(pairs_canonical_overall[stype]["average"]), "avg shuffled distance =",  str(np.average(shuffled_pairs_overall[stype]["average"])), "Significance:", str(significance))
+
+    print("\nSquare root 'average':")
+    nsmaller  = 0
+    nlarger = 0
+    nsame = 0
+    for repeat in range(ntries):
+        if shuffled_pairs_overall[stype]["sq_av"][repeat] < pairs_canonical_overall[stype]["sq_av"]:
+            nsmaller += 1
+        elif shuffled_pairs_overall[stype]["sq_av"][repeat] > pairs_canonical_overall[stype]["sq_av"]:
+            nlarger += 1
+        else:
+            nsame += 1
+    significance = significanceOneTailed(nlarger, nsmaller, nsame, ntries)
+    print(stype, ": canonical distance = ", str(pairs_canonical_overall[stype]["sq_av"]), "avg shuffled distance =",  str(np.average(shuffled_pairs_overall[stype]["sq_av"])), "Significance:", str(significance))
+
+    print("\nSums:")
+    nsmaller  = 0
+    nlarger = 0
+    nsame = 0
+    for repeat in range(ntries):
+        if shuffled_pairs_overall[stype]["sum"][repeat] < pairs_canonical_overall[stype]["sum"]:
+            nsmaller += 1
+        elif shuffled_pairs_overall[stype]["sum"][repeat] > pairs_canonical_overall[stype]["sum"]:
+            nlarger += 1
+        else:
+            nsame += 1
+    significance = significanceOneTailed(nlarger, nsmaller, nsame, ntries)
+    print(stype, ": canonical distance = ", str(pairs_canonical_overall[stype]["sum"]), "avg shuffled distance =",  str(np.average(shuffled_pairs_overall[stype]["sum"])), "Significance:", str(significance))
+
+
+print("\nOverall significance of trajectory comparisons:")
+print("Sums:")
+for nsig in range(10):
+    nsmaller  = 0
+    nlarger = 0
+    nsame = 0
+    print("\nResults for signature", sigids[nsig], ":")
+    for repeat in range(ntries):
+        if shuffled_trajects["sum"][repeat][nsig] < canon_trajects["sum"][nsig]:
+            nsmaller += 1
+        elif shuffled_trajects["sum"][repeat][nsig] > canon_trajects["sum"][nsig]:
+            nlarger += 1
+        else:
+            nsame += 1
+    significance = significanceOneTailed(nlarger, nsmaller, nsame, ntries)
+    print("Total canonical distance = ", str(canon_trajects["sum"][nsig]), "shuffled total distance =",  str(np.average(shuffled_trajects["sum"], axis=0)[nsig]), "Significance:", str(significance))
+
+print("Average across patients:")
+for nsig in range(10):
+    nsmaller  = 0
+    nlarger = 0
+    nsame = 0
+    print("\nResults for signature", sigids[nsig], ":")
+    for repeat in range(ntries):
+        if shuffled_trajects["average"][repeat][nsig] < canon_trajects["average"][nsig]:
+            nsmaller += 1
+        elif shuffled_trajects["average"][repeat][nsig] > canon_trajects["average"][nsig]:
+            nlarger += 1
+        else:
+            nsame += 1
+    significance = significanceOneTailed(nlarger, nsmaller, nsame, ntries)
+    print("Average canonical distance = ", str(canon_trajects["average"][nsig]), "shuffled avg distance =",  str(np.average(shuffled_trajects["average"], axis=0)[nsig]), "Significance:", str(significance))
+
