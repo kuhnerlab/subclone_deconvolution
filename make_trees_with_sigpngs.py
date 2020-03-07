@@ -69,8 +69,8 @@ for file in treefiles:
         continue
     if "all" in file:
         continue
-    patient = file.split(".")[0]
-    if onlysomepatients and patient not in somepatients:
+    label = file.split(".")[0]
+    if onlysomepatients and label not in somepatients:
         continue
     trees = []
     for line in open(treedir + file, "r"):
@@ -90,7 +90,7 @@ for file in treefiles:
             if branch.name != "":
                 name_face = AttrFace("name", fsize=30)
                 branch.add_face(name_face, column=3, position="branch-right")
-                pngfile = sigpngs[patient][tuple(branch.name.split("-")[0].split("_")[0:1])]
+                pngfile = sigpngs[label][tuple(branch.name.split("-")[0].split("_")[0:1])]
                 if "-" in branch.name:
                     brackets = TextFace("** ", fsize=30)
                     branch.add_face(brackets, column=2)
@@ -102,11 +102,11 @@ for file in treefiles:
                     tipset.append(tip.name)
                 tipset.sort()
                 tipset = tuple(tipset)
-                pngfile = sigpngs[patient][tipset]
+                pngfile = sigpngs[label][tipset]
                 image_face = ImgFace(sigpngdir + pngfile, width=400)
                 branch.add_face(image_face, column=0, position="branch-top")
                 
-        filename = patient + "_signatures"
+        filename = label + "_signatures"
         if len(trees)>1:
             filename += "_" + str(index)
         filename += ".png"

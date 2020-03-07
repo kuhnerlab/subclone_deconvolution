@@ -71,11 +71,11 @@ for file in sigfiles:
         continue
     filesigs = np.zeros(len(sigs))
     fvec = file.split(".")
-    patient = fvec[0]
-    if "all" in patient:
-        print("Skipping", patient, "because T3 mutations not analyzed.")
+    label = fvec[0]
+    if "all" in label:
+        print("Skipping", label, "because T3 mutations not analyzed.")
         continue
-    if onlysomepatients and patient not in somepatients:
+    if onlysomepatients and label not in somepatients:
         continue
     tips = fvec[1:-2]
     sigfile = open(sigdir + file, "r")
@@ -99,7 +99,7 @@ for file in sigfiles:
         nmuts += 1
     sigfile.close()
     remainder = nmuts
-    outfile.write(patient)
+    outfile.write(label)
     outfile.write("\t")
     tipstr = ""
     for tip in tips:
