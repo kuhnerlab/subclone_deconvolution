@@ -74,5 +74,6 @@ for pid in pids:
         plt.gca().yaxis.set_major_locator(plt.NullLocator())
 #        plt.savefig(pngdir + "legend.png", bbox_inches='tight', pad_inches=0)
         plt.savefig(pngdir + str(pid) + "." + str(branch) + ".signature.png", bbox_inches = 'tight', pad_inches = 0)
-        plt.show()
+#        plt.show()
+#        plt.clear()
 

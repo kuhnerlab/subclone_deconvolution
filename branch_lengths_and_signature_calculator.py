@@ -874,29 +874,3 @@ deletions, CNVs = lps.loadDeletionsAndCNVs(samplePatientMap)
 mutations = readMutations()
 
 sortMutations(mutations, allsets, inputSplits, deletions, CNVs, labelSamples)
-
-
-#writeAllSampleVAFs(mutations, patientSampleMap, deletions)
-
-count = 0
-countByCall = {}
-for patient in mutations:
-    for chrom in mutations[patient]:
-        for pos in mutations[patient][chrom]:
-            if len(list(mutations[patient][chrom][pos])) > 1:
-                print ("Double hit at", chrom, str(pos))
-            for alt in mutations[patient][chrom][pos]:
-                twosplit = False
-                slist = list(mutations[patient][chrom][pos][alt].keys())
-                if '23659' in slist and '23665' in slist and '23656' not in slist and '23662' not in slist:
-                    if not (isDeleted(patient, '23656', chrom, pos, deletions) or isDeleted(patient, '23662', chrom, pos, deletions)):
-                        twosplit = True
-                if twosplit:
-                    count += 1
-                    call = getCNVCall(patient, '23659', chrom, pos, CNVs)
-                    if call not in countByCall:
-                        countByCall[call] = 0
-                    countByCall[call] += 1
-
-print(count)
-print(str(countByCall))
