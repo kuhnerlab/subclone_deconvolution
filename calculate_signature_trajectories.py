@@ -359,7 +359,7 @@ def makeTreesets(alltrees, splits=True):
 
 
 def calculateAverages(treesets):
-    print("Calculating averages...")
+    print("\nCalculating averages...")
     avgfile = open(avgout, "w")
     avgfile.write("Patient")
     for sigid in sigids:
@@ -377,7 +377,7 @@ def calculateAverages(treesets):
 
 
 def calculateTrajectories(treesets):
-    print("Calculating trajectories...")
+    print("\n\nCalculating trajectories...")
     difffile = open(sigdiffs, "w")
     difffile.write("Patient")
     for sigid in sigids:
@@ -448,7 +448,7 @@ def calculateTrajectories(treesets):
         print("Average canonical distance = ", str(canon_trajects["average"][nsig]), "shuffled avg distance =",  str(np.average(shuffled_trajects["average"], axis=0)[nsig]), "Significance:", str(significance))
 
 def calculateAncestralVsSkew(treesets):
-    print("Calculating ancestral vs. skew...")
+    print("\n\nCalculating ancestral vs. skew...")
     stypes = ("ancestral_abs", "skew_abs", "ancestral_sq", "skew_sq")
     
     pairfile = open(pairdists, "w")
@@ -534,7 +534,7 @@ def calculateAncestralVsSkew(treesets):
     
 
 def calculateTipVsInternal(treesets):
-    print("Calculating differences between tip and internal signatures.")
+    print("\n\nCalculating differences between tip and internal signatures.")
     canon_tvis = []
     shuffled_tvis = np.zeros((ntries,10))
     
