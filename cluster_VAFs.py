@@ -3,29 +3,29 @@
 Created on Thu Oct  4 12:43:41 2018
 
 @author: Lucian
-"""
 
-#This script is the start of the subclonal deconvolution analysis.  It takes
-# as input a file with all the SNVs ('all_SNVs.csv'), information about where
-# deletions were found (from the 'noninteger_processed_CNs/' directory), and
-# outputs several files in a new 'VAFclusters/' directory; one per patient.
-#
-#During the analysis, all mutations are read in from the input file, and
-# classified according to what samples that mutation was found in.
-#
-#Deletions complicate matters, because if the site of a mutation has been
-# deleted in a sample where it was not observed, we don't know whether
-# it was not observed because that sample's lineage never had it, or whether
-# that sample's linage had it at one point, but then lost it due to the
-# deletion.  Accordingly, we flag that sample as having an 'unknown' status
-# for that mutation, and cluster it in a completely different cluster:
-# Normally, if a mutation is only seen in samples A and B, that mutation's
-# partition is ("A", "B").  But if that site is deleted in C, it instead
-# is classified into the ("A", "B", "-C") partition.
-#
-#These partitions ended up never being used in subsequent analyses, and
-# were dropped entirely.  But the classification scheme is still here
-# in case a future analysis includes them afer all.
+This script is the start of the subclonal deconvolution analysis.  It takes
+ as input a file with all the SNVs ('all_SNVs.csv'), information about where
+ deletions were found (from the 'noninteger_processed_CNs/' directory), and
+ outputs several files in a new 'VAFclusters/' directory; one per patient.
+
+During the analysis, all mutations are read in from the input file, and
+ classified according to what samples that mutation was found in.
+
+Deletions complicate matters, because if the site of a mutation has been
+ deleted in a sample where it was not observed, we don't know whether
+ it was not observed because that sample's lineage never had it, or whether
+ that sample's linage had it at one point, but then lost it due to the
+ deletion.  Accordingly, we flag that sample as having an 'unknown' status
+ for that mutation, and cluster it in a completely different cluster:
+ Normally, if a mutation is only seen in samples A and B, that mutation's
+ partition is ("A", "B").  But if that site is deleted in C, it instead
+ is classified into the ("A", "B", "-C") partition.
+
+These partitions ended up never being used in subsequent analyses, and
+ were dropped entirely.  But the classification scheme is still here
+ in case a future analysis includes them afer all.
+"""
 
 
 from __future__ import division
@@ -47,8 +47,13 @@ if not path.isdir(outdir):
     mkdir(outdir)
 
 def writeAllSampleVAFs(mutations, patientSampleMap, deletions):
-    #'mutations' is a dictionary of the form:
-    # mutations[patient][sample][chr][pos][alt][sample] = VAF
+    """
+    Takes the sorted mutations and a list of the deletions, and outputs
+     cluster information to files; one per patient.
+     
+    'mutations' is a dictionary of the form:
+     mutations[patient][sample][chr][pos][alt][sample] = VAF
+    """
     for patient in mutations:
         #Collect a set of clusters
         print("Writing data for patient", patient)
@@ -109,6 +114,10 @@ def writeAllSampleVAFs(mutations, patientSampleMap, deletions):
         patientVAFs.close()
 
 def isDeleted(patient, sample, chrom, pos, deletions):
+    """
+    Returns True if the position is deleted in the given sample, 
+     False if not.
+    """
     if patient not in deletions:
         return False
     if sample not in deletions[patient]:

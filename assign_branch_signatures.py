@@ -4,21 +4,18 @@
 Created on Tue Feb 18 10:58:00 2020
 
 @author: lpsmith
+
+This script takes as input one file that contains the assigned signature
+probabilities (from a separate by-patient analysis of all unique mutations
+found in that patient), as well as the by-branch lists of mutations that
+were output from 'branch_lengths_and_signature_calculator.py', and combines
+them to calculate the mutation signatures on every branch in the trees.
+These are then written to an output file.
 """
 
 from __future__ import division
 from os import walk
-from os import path
-from os import mkdir
-from ete3 import Tree, TreeStyle, TextFace, AttrFace
 import numpy as np
-
-import csv
-
-import lucianSNPLibrary as lps
-#Alternative for importing the 'lucianSNPLibrary':
-#import imp
-#lps = imp.load_source("lps","/home/mkkuhner/Papers/phylo/lucianSNPLibrary.py")
 
 onlysomepatients = False
 somepatients = ["483"]
@@ -31,6 +28,10 @@ sigdir = "branch_signatures/"
 outfilename = "all_signatures.tsv"
 
 def readSigProbs():
+    """
+    Read in the signature probabilities from signature_file, and store in
+    a dictionary.
+    """
     sigs = []
     sigprobs = {}
     sigfile = open(signature_file, "r")

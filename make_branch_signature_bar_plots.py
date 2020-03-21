@@ -4,23 +4,18 @@
 Created on Wed Feb 19 13:45:47 2020
 
 @author: lpsmith
+
+This script takes the output file from assign_branch_signatures.py and creates
+a bar plot for each branch's calculated signature.  The axes and all labels
+are removed:  the only thing that is saved is the hoizontally-stacked bars.
+
 """
 
 from __future__ import division
-from os import walk
 from os import path
 from os import mkdir
-from ete3 import Tree, TreeStyle, TextFace, AttrFace
-import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
-
-import csv
-
-import lucianSNPLibrary as lps
-#Alternative for importing the 'lucianSNPLibrary':
-#import imp
-#lps = imp.load_source("lps","/home/mkkuhner/Papers/phylo/lucianSNPLibrary.py")
 
 onlysomepatients = False
 somepatients = ["483"]
@@ -76,4 +71,5 @@ for pid in pids:
         plt.savefig(pngdir + str(pid) + "." + str(branch) + ".signature.png", bbox_inches = 'tight', pad_inches = 0)
 #        plt.show()
 #        plt.clear()
+        plt.close()
 

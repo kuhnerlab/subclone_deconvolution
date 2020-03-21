@@ -8,18 +8,10 @@ Created on Thu Feb 20 14:54:07 2020
 
 from __future__ import division
 from os import walk
-from os import path
-from os import mkdir
-from ete3 import Tree, TreeStyle, TextFace, AttrFace
+from ete3 import Tree
 
-import csv
 import numpy as np
 import random
-
-import lucianSNPLibrary as lps
-#Alternative for importing the 'lucianSNPLibrary':
-#import imp
-#lps = imp.load_source("lps","/home/mkkuhner/Papers/phylo/lucianSNPLibrary.py")
 
 onlysomepatients = False
 somepatients = ["1005"]
@@ -38,9 +30,23 @@ pairdists = "pair_distances.tsv"
 tvifilename = "tip_vs_internal_dist.tsv"
 
 
-
 class Treeset:
+    """
+    Hey, an actual python class!  w00t!
+    So: this class takes and stores a list of trees, and provides various
+    ways of analyzing the mutation signatures on those trees' branches.
+    When created, you declare whether you want to include the 'split tips' 
+    in your analysis, i.e. mutation signatures from mutations that were
+    private to a particular sample, but which showed up as multiple tips 
+    in the trees.  While developing these algorithms, it wasn't entirely
+    clear what we wanted to do with them; in the end, we almost always
+    just drop them.  Dropping them is what happens by default.
+    """
     def __init__(self, treelist, splits=False):
+        """
+        Set up a Treeset with a list of trees, either dropping the 'split
+        tips' (the default; splits=False) or including them.
+        """
         self.treelist = treelist
         self.branchlist = []
         self.allbranches = []
@@ -81,18 +87,38 @@ class Treeset:
                 assert(hasattr(branch, "index"))
 
     def getUpWithSigs(self, branch):
+        """
+        Finds the nearest ancestor of the passed-in branch that actually
+        has mutation signatures associated with it.  (In at least one case,
+        there's an internal branch of length 0 with no mutations associated
+        with it.)
+        """
         up = branch.up
         if up and not(hasattr(up, "sigs")):
             return self.getUpWithSigs(up)
         return up
     
     def calculateAvg(self):
+        """
+        Returns the average signature profile of all branches in these
+        trees.
+        """
         allsigs = []
         for branch in self.branchlist:
             allsigs.append(branch.sigs)
         return np.average(allsigs, axis=0)
     
     def calculateOneUpTrajectory(self, splitvec=None):
+        """
+        Calculate the difference between a child mutation signature and its
+        parent's mutation signature.  If 'splitvec' is not set, it's created
+        as a straight 0-based vector. The splitvec is used to shuffle the
+        branches when performing the analysis: you grab the signatures from
+        branchlist[splitvec[branch.index]] instead of 'branch'.  Because a 
+        branch's index is its position in branchlist, if 'splitvec' is
+        [0, 1, 2, ...], you get 'branch' back.  In all other cases, you
+        get a random branch with a signature.
+        """
         if not splitvec:
             splitvec = list(range(len(self.branchlist)))
         alldiffs = []
@@ -108,6 +134,11 @@ class Treeset:
         return np.sum(alldiffs, axis=0), len(alldiffs)
 
     def calculateUpTrajectories(self):
+        """
+        Calculate the canonical 'up trajectories', and then compare that
+        to a randomized tree, where every branch gets a random mutation
+        signature instead of its own.
+        """
         canonical, ndiffs = self.calculateOneUpTrajectory()
         nlarger = np.zeros(len(canonical))
         nsmaller = np.zeros(len(canonical))
@@ -131,12 +162,19 @@ class Treeset:
         return canonical, significance, shuffled, ndiffs
 
     def getAbsDistance(self, b1sigs, b2sigs):
+        """
+        Calculate the sum of the absolute differences between the two vectors.
+        """
         tot = 0
         for n in range(len(b1sigs)):
             tot += abs(b1sigs[n] - b2sigs[n])
         return tot
     
     def getSqDistance(self, b1sigs, b2sigs):
+        """
+        Calculate the sum of the squares of the differences between the
+        two vectors.
+        """
         tot = 0
         for n in range(len(b1sigs)):
             tot += pow(b1sigs[n] - b2sigs[n], 2)
@@ -144,6 +182,18 @@ class Treeset:
         
 
     def sortOnePairDistance(self, splitvec=None):
+        """
+        Calculate the pairwise distances between every pair of mutation
+        signatures on the trees, and store them either as 'ancestral' (when
+        one is the direct ancestor of the other) or 'skew' (all other cases,
+        including when one branch is on one tree, and the other branch is
+        on a completely different tree.)
+        As in calculateOneUpTrajectory(), splitvec is used so that the 
+        same routine can be used to calculate the true set of distances
+        and then can be re-used when shuffling the mutation signatures on the
+        tree and re-calculating everything. It relies on the fact that 
+        branch.index is equal that branch's position in self.branchlist.
+        """
         if not splitvec:
             splitvec = list(range(len(self.branchlist)))
         absdistances = {}
@@ -184,6 +234,12 @@ class Treeset:
         return distances, npairs
 
     def sortPairDistances(self):
+        """
+        Calculate and sort the pairwise distances between every pair of 
+        mutation signatures in the trees, and then compare the canonical
+        calculations to the re-sorted distances you get when every signature
+        on the tree is shuffled.
+        """
         canonical, npairs = self.sortOnePairDistance()
         shuffled = {}
         nlarger = {}
@@ -213,9 +269,20 @@ class Treeset:
         return canonical, significance, shuffled, npairs
 
     def getNBranches(self):
+        """
+        Returns the number of brances in the tree with mutation signatures.
+        """
         return len(self.branchlist)
 
     def calcOneTipVsInternalSigs(self, splitvec=None):
+        """
+        Calculates the overall difference between the tip branch mutation
+        signatures and the internal branch mutation signatures.  As in other
+        similar functions 'splitvec' allows us to use the same function 
+        whether we're calculating the true distance, or whether we're
+        calculating what the distance would be if we shuffled all the
+        signatures in the trees.
+        """
         if not splitvec:
             splitvec = list(range(len(self.branchlist)))
         tipSigTotal = np.zeros(10)
@@ -236,6 +303,11 @@ class Treeset:
         return np.subtract(tipSigs, branchSigs)
     
     def calcTipVsInternalSigs(self):
+        """
+        Calculates the difference between the tips and the internal branches,
+        and then re-calculates this difference with the branch mutation
+        signatures shuffled, to determine significance.
+        """
         canonical = self.calcOneTipVsInternalSigs()
         tvi_shuffled = []
         significances = []
@@ -264,6 +336,18 @@ class Treeset:
             
 
 def significanceOneTailed(nlarger, nsmaller, nsame, ntries):
+    """
+    Given a number of observations that are smaller, larger, or the same
+    as a given value, calculates the significance of that observation,
+    assuming we were expecting the observed value to be in the direction
+    it actually was.  This would be super straightforward except for the
+    number of ties:  it turns out that both the conservative option (where
+    you count the ties against the signficance) and the aggressive option
+    (where you count the ties in your favor) is wrong: you must include a
+    random number of ties. This is more obvious when you run this algorithm
+    with nothing but ties:  the result should be significant exactly 5%
+    of the time, which you only get if you choose randomly.
+    """
     same_rnd = random.randint(0,nsame)
     pos = min(nlarger, nsmaller) + same_rnd
     if pos*2>ntries:
@@ -271,6 +355,11 @@ def significanceOneTailed(nlarger, nsmaller, nsame, ntries):
     return pos/ntries
 
 def significanceTwoTailed(nlarger, nsmaller, nsame, ntries):
+    """
+    When you didn't have an expectation of what direction the true
+    value should be in relation to the average, you double the 
+    one-tailed test significance.
+    """
     return 2*significanceOneTailed(nlarger, nsmaller, nsame, ntries)
 
 
@@ -307,6 +396,10 @@ def readTrees():
     return alltrees
 
 def readAndStoreSignatures(alltrees):
+    """
+    Reads in the mutation signature file, and assigns the signatures there
+    to the branches of the trees.
+    """
     for line in open(sigfile):
         lvec = line.rstrip().split()
         if "Patient" in line:
@@ -339,13 +432,15 @@ def readAndStoreSignatures(alltrees):
                 except:
                     continue
         assert(found)
-    #Now put labels on the branches
-#    for label in alltrees:
         
     return sigids
 
 
 def makeTreesets(alltrees, splits=True):
+    """
+    Takes the trees (which have already been annotated with the mutation
+    signatures) and creates Treesets from them.
+    """
     treesets = {}
     for label in alltrees:
         if "all" in label:
@@ -359,6 +454,9 @@ def makeTreesets(alltrees, splits=True):
 
 
 def calculateAverages(treesets):
+    """
+    Calculates the average signature per patient.
+    """
     print("\nCalculating averages...")
     avgfile = open(avgout, "w")
     avgfile.write("Patient")
@@ -377,6 +475,10 @@ def calculateAverages(treesets):
 
 
 def calculateTrajectories(treesets):
+    """
+    Calculates how much mutations signatures change as you move from the root
+    of the tree to the tips.
+    """
     print("\n\nCalculating trajectories...")
     difffile = open(sigdiffs, "w")
     difffile.write("Patient")
@@ -429,7 +531,7 @@ def calculateTrajectories(treesets):
             else:
                 nsame += 1
         significance = significanceOneTailed(nlarger, nsmaller, nsame, ntries)
-        print("Total canonical distance = ", str(canon_trajects["sum"][nsig]), "shuffled total distance =",  str(np.average(shuffled_trajects["sum"], axis=0)[nsig]), "Significance:", str(significance))
+        print("Total canonical distance = ", str(canon_trajects["sum"][nsig]), "shuffled total distance =",  str(np.average(shuffled_trajects["sum"], axis=0)[nsig]), "\nSignificance:", str(significance))
     
     print("Average across patients:")
     for nsig in range(10):
@@ -445,9 +547,13 @@ def calculateTrajectories(treesets):
             else:
                 nsame += 1
         significance = significanceOneTailed(nlarger, nsmaller, nsame, ntries)
-        print("Average canonical distance = ", str(canon_trajects["average"][nsig]), "shuffled avg distance =",  str(np.average(shuffled_trajects["average"], axis=0)[nsig]), "Significance:", str(significance))
+        print("Average canonical distance = ", str(canon_trajects["average"][nsig]), "shuffled avg distance =",  str(np.average(shuffled_trajects["average"], axis=0)[nsig]), "\nSignificance:", str(significance))
 
 def calculateAncestralVsSkew(treesets):
+    """
+    Calculate whether the signatures are significantly different in ancestral
+    lineages vs. skew lineages.
+    """
     print("\n\nCalculating ancestral vs. skew...")
     stypes = ("ancestral_abs", "skew_abs", "ancestral_sq", "skew_sq")
     
@@ -502,7 +608,7 @@ def calculateAncestralVsSkew(treesets):
             else:
                 nsame += 1
         significance = significanceOneTailed(nlarger, nsmaller, nsame, ntries)
-        print(stype, ": canonical distance = ", str(pairs_canonical_overall[stype]["average"]), "avg shuffled distance =",  str(np.average(shuffled_pairs_overall[stype]["average"])), "Significance:", str(significance))
+        print(stype, ": canonical distance = ", str(pairs_canonical_overall[stype]["average"]), "avg shuffled distance =",  str(np.average(shuffled_pairs_overall[stype]["average"])), "\nSignificance:", str(significance))
     
         print("\nSquare root 'average':")
         nsmaller  = 0
@@ -516,7 +622,7 @@ def calculateAncestralVsSkew(treesets):
             else:
                 nsame += 1
         significance = significanceOneTailed(nlarger, nsmaller, nsame, ntries)
-        print(stype, ": canonical distance = ", str(pairs_canonical_overall[stype]["sq_av"]), "avg shuffled distance =",  str(np.average(shuffled_pairs_overall[stype]["sq_av"])), "Significance:", str(significance))
+        print(stype, ": canonical distance = ", str(pairs_canonical_overall[stype]["sq_av"]), "avg shuffled distance =",  str(np.average(shuffled_pairs_overall[stype]["sq_av"])), "\nSignificance:", str(significance))
     
         print("\nSums:")
         nsmaller  = 0
@@ -530,10 +636,14 @@ def calculateAncestralVsSkew(treesets):
             else:
                 nsame += 1
         significance = significanceOneTailed(nlarger, nsmaller, nsame, ntries)
-        print(stype, ": canonical distance = ", str(pairs_canonical_overall[stype]["sum"]), "avg shuffled distance =",  str(np.average(shuffled_pairs_overall[stype]["sum"])), "Significance:", str(significance))
+        print(stype, ": canonical distance = ", str(pairs_canonical_overall[stype]["sum"]), "avg shuffled distance =",  str(np.average(shuffled_pairs_overall[stype]["sum"])), "\nSignificance:", str(significance))
     
 
 def calculateTipVsInternal(treesets):
+    """
+    Calculate whether the signatures are significantly different in the tips 
+    vs. in the internal branches.
+    """
     print("\n\nCalculating differences between tip and internal signatures.")
     canon_tvis = []
     shuffled_tvis = np.zeros((ntries,10))
@@ -572,7 +682,7 @@ def calculateTipVsInternal(treesets):
             else:
                 nsame += 1
         significance = significanceTwoTailed(nlarger, nsmaller, nsame, ntries)
-        print(sigids[nsig], " average = ", str(canon_tvi_avg[nsig]), "stdev shuffled =", str(np.std(shuffled_tvis, axis=1)[nsig]), "Significance = ", str(significance))
+        print(sigids[nsig], " average = ", str(canon_tvi_avg[nsig]), "stdev shuffled =", str(np.std(shuffled_tvis, axis=1)[nsig]), ificance = ", str(significance))
         print("Larger", str(nlarger), "Smaller", str(nsmaller), "Same", str(nsame))
     
     
@@ -588,10 +698,12 @@ calculateTrajectories(treesets_nosplits)
 calculateAncestralVsSkew(treesets_nosplits)
 
 
-#Next, do all analyses that can include the split tips.
+#Next, do all analyses that can include the split tips.  Have to re-read
+# the trees themselves, since the signatures were already stored on them
+# in the first 'readAndStoreSignatures'.
 alltrees = readTrees()
 sigids = readAndStoreSignatures(alltrees)
-treesets_splits = makeTreesets(alltrees.copy(), splits=True)
+treesets_splits = makeTreesets(alltrees, splits=True)
 calculateTipVsInternal(treesets_splits)
     
 

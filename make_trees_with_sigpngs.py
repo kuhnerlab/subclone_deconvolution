@@ -4,6 +4,11 @@
 Created on Wed Feb 19 15:26:42 2020
 
 @author: lpsmith
+
+This script takes the trees from branch_lengths_and_signature_calculator.py,
+plus the bar plots from make_branch_signature_bar_plots.py, and creates ete3
+tree pictures with the signature bars printed over every branch.
+
 """
 
 from __future__ import division
@@ -11,14 +16,6 @@ from os import walk
 from os import path
 from os import mkdir
 from ete3 import Tree, TreeStyle, TextFace, AttrFace, ImgFace
-import numpy as np
-
-import csv
-
-import lucianSNPLibrary as lps
-#Alternative for importing the 'lucianSNPLibrary':
-#import imp
-#lps = imp.load_source("lps","/home/mkkuhner/Papers/phylo/lucianSNPLibrary.py")
 
 onlysomepatients = False
 somepatients = ["42"]
@@ -32,6 +29,10 @@ if not path.isdir(treesigdir):
 
 
 def loadBranchSignaturePngs():
+    """
+    Load all the bar plot pictures, and use the filenames to store what
+    patient and set of tips they belong to.
+    """
     sigpngs = {}
     pngfiles = []
     for __, _, files in walk(sigpngdir):

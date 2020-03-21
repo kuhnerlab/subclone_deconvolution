@@ -34,7 +34,7 @@ somepatients = ["184"]
 #somepatients = ["387", "483", "609", "611", "626", "631", "635", "652", "852"] #double split patients
 
 #input files and directories:
-mutation_file = "lucian_from_kanika.csv"
+mutation_file = "all_SNVs.csv"
 treedir = "final_trees/"
 optimdir = "final_optim/"
 
@@ -392,6 +392,13 @@ def getBranchFrom(trees, xtipnames, samplename):
     return getBranch(trees, tipnames)
 
 def getClosestBranch(trees, tipset, basebranch, samplename):
+    """
+    This function finds the common ancestor of the tipset, but then moves
+     rootward in the tree to get as close to the 'basebranch' as possible
+     without actually becoming the basebranch.  This is necessary in some
+     situations when a split is found where other descendants are also in
+     the picture.
+    """
     branch = getBranchFrom(trees, tipset, samplename)
     isAncestor = False
     for testbranch in basebranch.traverse():
@@ -408,6 +415,11 @@ def getClosestBranch(trees, tipset, basebranch, samplename):
 
 
 def getSigFileFrom(sigfilename, files):
+    """
+    We need to write to various files all at once.  This function creates
+    a file if we need it, and stores it in 'files' so that it can be
+    written to as needed later.
+    """
     if sigfilename not in files:
         sigfile = open(sigdir + sigfilename, "w")
         files[sigfilename] = sigfile
@@ -415,6 +427,10 @@ def getSigFileFrom(sigfilename, files):
     return files[sigfilename]
 
 def getSigFile(branch, label, files):
+    """
+    Here, we figure out what the name of the file is that we need to write
+    to, then calls getSigFileFrom() to get the actual file handle.
+    """
     tipnames = []
     for tip in branch:
         tipnames.append(tip.name)
@@ -426,10 +442,18 @@ def getSigFile(branch, label, files):
     return getSigFileFrom(sigfilename, files)
 
 def closeFiles(files):
+    """
+    Closes all the file handles in the dictionary.
+    """
     for filename in files:
         files[filename].close()
 
 def isDeletedInNonGroupSample(group, treesamples, label, chrom, pos):
+    """
+    Here, we know that we have a position that was found to be mutant in 
+    several samples, but we don't know if it was deleted in other samples.
+    This checks to see if this is the case.
+    """
     patient = label.split('_')[0]
     for sample in treesamples:
         if sample not in group:
@@ -439,6 +463,11 @@ def isDeletedInNonGroupSample(group, treesamples, label, chrom, pos):
     return False
 
 def saveTips(group, label, trees, files, chrom, pos, alt):
+    """
+    This writes out mutations that are known to be in a tip, but not
+    necessarily *which* tip, to a file for mutation signature analysis
+    purposes.
+    """
     assert(len(group)==1)
     sigfilename = label
     for tipname in group:
@@ -460,6 +489,12 @@ def saveTips(group, label, trees, files, chrom, pos, alt):
     
 
 def saveNonSplit(label, trees, treesamples, group, allsets, files, chrom, pos, alt):
+    """
+    In this scenario, we've found a mutation and we know exactly what branch it
+    should be on, since there was no 'split' of mutations in this cluster.
+    So, we can just save it to the appropriate signature file, and add it to
+    the branch length.
+    """
     if group not in allsets[label]:
         #At some point, we might save these somewhere, but for now they're just considered errors.
         return False
@@ -482,10 +517,22 @@ def saveNonSplit(label, trees, treesamples, group, allsets, files, chrom, pos, a
     return True
 
 def combineSampleAndTipLabel(sample, tiplabel):
+    """
+    The 'tiplabel' is (from the optim file) in the form 'x1', 'x2', etc.
+    This converts this to a newick-format tip label, which is the sample
+    name, a dash, and the number.  So, "x1" is converted to something
+    like "23466-1".
+    """
     nox = tiplabel.replace("x", "-")
     return sample + nox
 
 def saveSingleSplit(label, group, branch, chrom, pos, alt, treesamples, files):
+    """
+    Once we've determined which particular branch a mutation belongs in
+    (after figuring out which branch of the split was more appropriate),
+    this function writes it to the appropriate signature file, and increments
+    the branch length.
+    """
     if isDeletedInNonGroupSample(group, treesamples, label, chrom, pos):
         return False
     #print(label)
@@ -499,6 +546,13 @@ def saveSingleSplit(label, group, branch, chrom, pos, alt, treesamples, files):
     
 
 def saveForSplits(splits, doublesplits, group, sampleVAFs, chrom, pos, alt, CNVs, patient, splitPartitions):
+    """
+    When going through all the mutations the first time, this function is
+     called when a 'split' is found:  when one or more of the samples in the
+     partition has a split VAF with two peaks.  Here, we just save that
+     information into 'splits' and 'doublesplits' so we can deal with it 
+     later.
+    """
     for keySample in splitPartitions:
         call = getCNVCall(patient, keySample, chrom, pos, CNVs)
         strcall = str(call[0]) + "," + str(call[1])
@@ -519,6 +573,10 @@ def saveForSplits(splits, doublesplits, group, sampleVAFs, chrom, pos, alt, CNVs
             splits[group][strcall].append((sampleVAFs[keySample], chrom, pos, alt))
 
 def getSplitBranchesFrom(trees, tipsets, keySample):
+    """
+    Find the ancestral branch of each of the tipsets, each of which will be
+     assigned some of the mutations assigned to that split.
+    """
     assert(len(tipsets) > 1)
     sortedtips = sorted(tipsets)
     shortesttipset = sortedtips[0]
@@ -548,6 +606,12 @@ def getSplitBranchesFrom(trees, tipsets, keySample):
     return branches
 
 def divideLengthFromSplit(lengthOnly, branches):
+    """
+    When we can't assign a mutation to a particular branch, but we know they
+     belong to a subset of branches, we add those mutations to the given
+     branches proportionally to their existing branch length (which is the
+     the sum of the mutations we *can* assign them.)
+    """
     totlen = 0
     for tipset in branches:
         totlen += branches[tipset].dist
@@ -557,6 +621,14 @@ def divideLengthFromSplit(lengthOnly, branches):
         branch.dist += lengthOnly * (branch.dist/totlen)
 
 def saveSplits(splits, trees, treesamples, files, inputSplits, label):
+    """
+    After we've assigned all the mutations to the 'splits' object, this routine
+     goes through them and parcels out each mutation to the branch it's most
+     likely to belong to.  If it's impossible to assign a mutation to a
+     particular branch, it can't add it to any branch's mutation signature,
+     but its length is still added proportionally to the branches where it
+     might be.
+    """
     for group in splits:
         lengthOnly = 0
         
@@ -619,6 +691,11 @@ def saveSplits(splits, trees, treesamples, files, inputSplits, label):
 #            assert(False)
 
 def divideLengthAmongBranches(divlen, branches, families):
+    """
+    When a double split mutation can't be assigned to a particular branch,
+     its length is instead assigned proportionally to all of the potential
+     branches where it might have been.
+    """
     totlen = 0
     for tiplists in families:
         totlen += len(families[tiplists])
@@ -629,6 +706,13 @@ def divideLengthAmongBranches(divlen, branches, families):
     
 
 def ensureEntireGroupIsChildOfBranch(listbasebranch, group, basebranch):
+    """
+    In exactly one patient, there's a double split where the common ancestor
+     of the smallest subgroup is actually *not* the branch you want, because
+     there's a non-split tip that needs to be in there as well.  This routine
+     ensures that every sample in the group is represented in the returned
+     common ancestor.
+    """
     if basebranch == listbasebranch:
         return basebranch
     foundset = set()
@@ -647,6 +731,10 @@ def ensureEntireGroupIsChildOfBranch(listbasebranch, group, basebranch):
     return listbasebranch
 
 def saveDoubleSplitFamilies(families, trees, treesamples, files, label, lengthOnlyPositions, group):
+    """
+    Parcel out mutations among all the appropriate branches, to add to the
+     signature lists, or, if that is impossible, to the branch lengths.
+    """
     alltips = set()
     tipsets = {}
     divlen = len(lengthOnlyPositions)
@@ -683,6 +771,10 @@ def saveDoubleSplitFamilies(families, trees, treesamples, files, label, lengthOn
 
 
 def removeDeletedPositions(group, treesamples, label, positions):
+    """
+    Remove all the mutations from positions that were deleted in samples that
+     did not have the mutation.
+    """
     badpos = []
     for (chrom, pos, alt) in positions:
         if isDeletedInNonGroupSample(group, treesamples, label, chrom, pos):
@@ -696,6 +788,11 @@ def removeDeletedPositions(group, treesamples, label, positions):
 
 
 def sortDoubleSplits(doublesplits, trees, treesamples, files, inputSplits, label):
+    """
+    Take the 'doublesplits' result of the initial sorting algorithm, and parse
+    them out to the appropriate branches, or, if the particular branch
+    cannot be found, at least divvy the lengths appropriately.
+    """
     #For the double splits, they're not stored as vectors, so we have to store them.
     for group in doublesplits:
         positions = {}
@@ -771,15 +868,20 @@ def sortDoubleSplits(doublesplits, trees, treesamples, files, inputSplits, label
 #    foo()
 
 def writeTrees(trees, label):
+    """
+    Now that we have branch lengths, write out new Newick trees with the
+    branch lengths included.  Note that ete3 does not seem to write out
+    the length of the root automatically, so we add it in by hand.
+    """
     ts = TreeStyle()
     ts.show_leaf_name = False
     ts.show_branch_length = False
     ts.branch_vertical_margin = 20
     ts.scale = 0.05
     outtrees = open(lengthdir + label + ".newick", "w")
-    #round the branch lengths
     for index, tree in enumerate(trees):
         #print(tree)
+        #If needed:  round the branch lengths
 #        for branch in tree.traverse():
 #            branch.dist = round(branch.dist)
         line = tree.write(format=1)
@@ -809,6 +911,19 @@ def writeTrees(trees, label):
     
 
 def sortMutations(mutations, allsets, inputSplits, deletions, CNVs, labelSamples):
+    """
+    Loop through all the mutations for all the samples in all the patients in
+    the study, and parcel them out to three groups:
+        * The simple ones that can be assigned to a single branch.
+        * The 'split' ones that can be assigned to one of two branches.
+        * The 'double split' ones that can be assigned to one of three branches.
+    While doing this, we write out three things:
+        * The new tree with branch lengths.
+        * 'mutation signature' files, which are lists (one per branch) of
+          mutations for subsequent mutation signature analysis
+        * A summary file that lists how many mutations were stored and how
+          many had to be skipped.
+    """
     savesort = open(sigdir + "saved_or_skipped.tsv", "w")
     savesort.write("Tree\tsaved\tskipped\tsplit\n")
     for label in allsets:
