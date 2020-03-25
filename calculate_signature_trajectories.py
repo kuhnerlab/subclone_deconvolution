@@ -21,7 +21,7 @@ somepatients = ["1005"]
 treedir = "branch_lengths/"
 sigfile = "branch_signatures/all_signatures.tsv"
 
-ntries = 10000
+ntries = 100000
 
 #output files:
 avgout = "average_sigs.tsv"
@@ -108,7 +108,22 @@ class Treeset:
             allsigs.append(branch.sigs)
         return np.average(allsigs, axis=0)
     
-    def calculateOneUpTrajectory(self, splitvec=None):
+    def excludeFrom(self, vec, excludes):
+        """
+        Once we know that one signature's trajectory is significant, we then
+        want to remove it from subsequent analyses so that we can see if
+        other signatures also change their trajectory, without being 
+        enhanced or depressed by the main signal.
+        """
+        if len(excludes)==0:
+            return vec
+        newvec = []
+        for n in range(len(vec)):
+            if n not in excludes:
+                newvec.append(vec[n])
+        return np.divide(newvec, np.sum(newvec))
+    
+    def calculateOneUpTrajectory(self, excludes, splitvec=None):
         """
         Calculate the difference between a child mutation signature and its
         parent's mutation signature.  If 'splitvec' is not set, it's created
@@ -130,16 +145,18 @@ class Treeset:
                 if upbranch:
                     branchsigs = self.branchlist[splitvec[branch.index]].sigs
                     upsigs = self.branchlist[splitvec[upbranch.index]].sigs
+                    branchsigs = self.excludeFrom(branchsigs, excludes)
+                    upsigs = self.excludeFrom(upsigs, excludes)
                     alldiffs.append(np.subtract(branchsigs, upsigs))
         return np.sum(alldiffs, axis=0), len(alldiffs)
 
-    def calculateUpTrajectories(self):
+    def calculateUpTrajectories(self, excludes):
         """
         Calculate the canonical 'up trajectories', and then compare that
         to a randomized tree, where every branch gets a random mutation
         signature instead of its own.
         """
-        canonical, ndiffs = self.calculateOneUpTrajectory()
+        canonical, ndiffs = self.calculateOneUpTrajectory(excludes)
         nlarger = np.zeros(len(canonical))
         nsmaller = np.zeros(len(canonical))
         nsame = np.zeros(len(canonical))
@@ -148,7 +165,7 @@ class Treeset:
         for n in range(self.ntries):
             splitvec = list(range(len(self.branchlist)))
             random.shuffle(splitvec)
-            diffrand, __ = self.calculateOneUpTrajectory(splitvec=splitvec)
+            diffrand, __ = self.calculateOneUpTrajectory(excludes, splitvec=splitvec)
             shuffled.append(diffrand)
             for n in range(len(canonical)):
                 if diffrand[n] < canonical[n]:
@@ -443,17 +460,18 @@ def makeTreesets(alltrees, splits=True):
     """
     treesets = {}
     for label in alltrees:
-        if "all" in label:
-            #LS DEBUG:  REMOVE THIS WHEN WE GET T3 DATA!!
-            continue
-#        if label + "_all" in alltrees:
-#            #Skips 4-sample trees if there are 6-sample trees available.
+#        if "all" in label:
+#            #LS DEBUG:  REMOVE THIS WHEN WE GET T3 DATA!!
 #            continue
+        if label + "_all" in alltrees:
+            #Skips 4-sample trees if there are 6-sample trees available.
+            print("Skipping", label, "since there's a 6-tip version available.")
+            continue
         treesets[label] = Treeset(alltrees[label], splits=splits)
     return treesets
 
 
-def calculateAverages(treesets):
+def calculateAverages(treesets, sigids):
     """
     Calculates the average signature per patient.
     """
@@ -474,11 +492,16 @@ def calculateAverages(treesets):
     avgfile.close()
 
 
-def calculateTrajectories(treesets):
+def calculateTrajectories(treesets, oldsigids, excludes=()):
     """
     Calculates how much mutations signatures change as you move from the root
     of the tree to the tips.
     """
+    sigids = []
+    for n in range(len(oldsigids)):
+        if n not in excludes:
+            sigids.append(oldsigids[n])
+        
     print("\n\nCalculating trajectories...")
     difffile = open(sigdiffs, "w")
     difffile.write("Patient")
@@ -505,7 +528,7 @@ def calculateTrajectories(treesets):
         # that produced the same or a more extreme value for that signature.
         # A value of '1' means all the values were the same.
         difffile.write(label)
-        canonical_traj, signif_traj, shuffled_traj, ndiffs = treeset.calculateUpTrajectories()
+        canonical_traj, signif_traj, shuffled_traj, ndiffs = treeset.calculateUpTrajectories(excludes)
         for nsig in range(len(canonical_traj)):
             difffile.write("\t" + str(canonical_traj[nsig]))
             difffile.write("\t" + str(signif_traj[nsig]))
@@ -518,7 +541,7 @@ def calculateTrajectories(treesets):
     difffile.close()
     print("\nOverall significance of trajectory comparisons:")
     print("Sums:")
-    for nsig in range(10):
+    for nsig in range(len(sigids)):
         nsmaller  = 0
         nlarger = 0
         nsame = 0
@@ -534,7 +557,7 @@ def calculateTrajectories(treesets):
         print("Total canonical distance = ", str(canon_trajects["sum"][nsig]), "shuffled total distance =",  str(np.average(shuffled_trajects["sum"], axis=0)[nsig]), "\nSignificance:", str(significance))
     
     print("Average across patients:")
-    for nsig in range(10):
+    for nsig in range(len(sigids)):
         nsmaller  = 0
         nlarger = 0
         nsame = 0
@@ -596,7 +619,7 @@ def calculateAncestralVsSkew(treesets):
     pairfile.close()
     print("Overall significance of pairwise comparisons of ancestral vs. skew:")
     for stype in stypes:
-        print("Averages:")
+        print("\n\nDistances for", stype)
         nsmaller  = 0
         nlarger = 0
         nsame = 0
@@ -682,7 +705,13 @@ def calculateTipVsInternal(treesets):
             else:
                 nsame += 1
         significance = significanceTwoTailed(nlarger, nsmaller, nsame, ntries)
-        print(sigids[nsig], " average = ", str(canon_tvi_avg[nsig]), "stdev shuffled =", str(np.std(shuffled_tvis, axis=1)[nsig]), ificance = ", str(significance))
+        print(sigids[nsig], 
+              " average = ", 
+              str(canon_tvi_avg[nsig]), 
+              "stdev shuffled =", 
+              str(np.std(shuffled_tvis, axis=1)[nsig]), 
+              "significance = ", 
+              str(significance))
         print("Larger", str(nlarger), "Smaller", str(nsmaller), "Same", str(nsame))
     
     
@@ -693,8 +722,9 @@ alltrees = readTrees()
 sigids = readAndStoreSignatures(alltrees)
 treesets_nosplits = makeTreesets(alltrees, splits=False)
 
-calculateAverages(treesets_nosplits)
-calculateTrajectories(treesets_nosplits)
+calculateAverages(treesets_nosplits, sigids)
+calculateTrajectories(treesets_nosplits, sigids)
+calculateTrajectories(treesets_nosplits, sigids, excludes=[7])
 calculateAncestralVsSkew(treesets_nosplits)
 
 
@@ -705,16 +735,3 @@ alltrees = readTrees()
 sigids = readAndStoreSignatures(alltrees)
 treesets_splits = makeTreesets(alltrees, splits=True)
 calculateTipVsInternal(treesets_splits)
-    
-
-
-
-
-
-
-
-
-
-
-
-

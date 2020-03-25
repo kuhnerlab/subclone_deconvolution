@@ -49,6 +49,16 @@ def loadBranchSignaturePngs():
         sigpngs[patient][tipset] = file
     return sigpngs
 
+def hasSix(patient):
+    """
+    Ten patients have six samples instead of four.  These patients are 
+    sometimes analyzed two ways: once with 'all' and once without.  This
+    returns 'True' if they're one of the ten.
+    """
+    if patient in ("55", "59", "126", "184", "381", "478", "609", "635", "865", "909"):
+        return True
+    return False
+
 
 sigpngs = loadBranchSignaturePngs()
 
@@ -68,9 +78,11 @@ ts.scale = 0.05
 for file in treefiles:
     if "newick" not in file:
         continue
-    if "all" in file:
-        continue
     label = file.split(".")[0]
+    patient = label.split("_")[0]
+    if "all" not in file and hasSix(patient):
+        #Skip 4-tip versions of the trees.
+        continue
     if onlysomepatients and label not in somepatients:
         continue
     trees = []

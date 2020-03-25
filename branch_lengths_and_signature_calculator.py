@@ -23,13 +23,13 @@ import csv
 import lucianSNPLibrary as lps
 #Alternative for importing the 'lucianSNPLibrary':
 #import imp
-#lps = imp.load_source("lps","/home/mkkuhner/Papers/phylo/lucianSNPLibrary.py")
+#lps = imp.load_source("lps","/path/to/lucianSNPLibrary.py")
 
 #Flags for changing what the program outputs:
 showTrees = True
 needDoubleSplitInfo = False
 
-onlysomepatients = False
+onlysomepatients = True
 somepatients = ["184"]
 #somepatients = ["387", "483", "609", "611", "626", "631", "635", "652", "852"] #double split patients
 

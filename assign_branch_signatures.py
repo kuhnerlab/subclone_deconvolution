@@ -22,7 +22,7 @@ somepatients = ["483"]
 #somepatients = ["387", "483", "609", "611", "626", "631", "635", "652", "852"] #double split patients
 
 #input files and directories:
-signature_file = "signature_probabilities/all_muts_with_signature_probabilities.txt"
+signature_file = "BE_signatures\BE_patient_based_corrected\Mutation_with_signature_probability_annotated_patient_based.txt"
 sigdir = "branch_signatures/"
 
 outfilename = "all_signatures.tsv"
@@ -37,21 +37,30 @@ def readSigProbs():
     sigfile = open(signature_file, "r")
     for line in sigfile:
         lvec = line.rstrip().split("\t")
-        if "Sample" in line:
+        if "Patient" in line:
             sigs = lvec[4:]
             continue
-        (sample, chrom, pos, refalt) = lvec[0:4]
+        (patient, chrom, pos, refalt) = lvec[0:4]
+        patient = patient.split("_")[1]
         (ref, alt) = refalt.split(">")
-        if sample not in sigprobs:
-            sigprobs[sample] = {}
-        sigprobs[sample][(chrom, pos)] = lvec[4:]
-        for n, prob in enumerate(sigprobs[sample][(chrom, pos)]):
-            sigprobs[sample][(chrom, pos)][n] = float(prob)
+        if patient not in sigprobs:
+            sigprobs[patient] = {}
+        sigprobs[patient][(chrom, pos)] = lvec[4:]
+        for n, prob in enumerate(sigprobs[patient][(chrom, pos)]):
+            sigprobs[patient][(chrom, pos)][n] = float(prob)
     sigfile.close()
     return (sigprobs, sigs)
 
 
-
+def hasSix(patient):
+    """
+    Ten patients have six samples instead of four.  These patients are 
+    sometimes analyzed two ways: once with 'all' and once without.  This
+    returns 'True' if they're one of the ten.
+    """
+    if patient in ("55", "59", "126", "184", "381", "478", "609", "635", "865", "909"):
+        return True
+    return False
 
 
 sigprobs, sigs = readSigProbs()
@@ -73,10 +82,11 @@ for file in sigfiles:
     filesigs = np.zeros(len(sigs))
     fvec = file.split(".")
     label = fvec[0]
-    if "all" in label:
-        print("Skipping", label, "because T3 mutations not analyzed.")
+    patient = label.split("_")[0]
+    if "all" not in label and hasSix(label):
+        print("Skipping", label, "so we only analyze the full version.")
         continue
-    if onlysomepatients and label not in somepatients:
+    if onlysomepatients and patient not in somepatients:
         continue
     tips = fvec[1:-2]
     sigfile = open(sigdir + file, "r")
@@ -89,8 +99,8 @@ for file in sigfiles:
         sigset = np.zeros(len(sigs))
         for tip in tips:
             onetip = tip.split("-")[0].split("_")[0]
-            if (chrom, pos) in sigprobs[onetip]:
-                probs = sigprobs[onetip][(chrom, pos)]
+            if (chrom, pos) in sigprobs[patient]:
+                probs = sigprobs[patient][(chrom, pos)]
                 sigset = [sigset[i]+probs[i] for i in range(len(sigset))]
                 nsamples += 1
         assert(nsamples > 0)
