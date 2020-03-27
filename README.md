@@ -9,7 +9,7 @@ Required data files/directories (not included):
 * calling_evidence_odds.tsv	File that calculates the odds of a given sample being diploid or tetraploid.  Last column is the final call.
 * all_SNVs.csv	List of every called mutation in every sample.
 * noninteger_processed_CNs/	Directory containing CNV calls for every sample.
-* signature_probabilities/all_muts_with_signature_probabilities.txt	File with mutation signature assignments per mutation.
+* BE_signatures/BE_patient_based_corrected/Mutation_with_signature_probability_annotated_patient_based.txt	File with mutation signature assignments per mutation.
 * final_trees/  Directory containing deconvoluted Newick trees.
 * final_optim/  Directory containing 'optim' input files.
 
