@@ -20,10 +20,10 @@ from ete3 import Tree, TreeStyle, TextFace, AttrFace
 
 import csv
 
-import lucianSNPLibrary as lps
+import lucianSNPLibrary as lsl
 #Alternative for importing the 'lucianSNPLibrary':
 #import imp
-#lps = imp.load_source("lps","/path/to/lucianSNPLibrary.py")
+#lsl = imp.load_source("lsl","/path/to/lucianSNPLibrary.py")
 
 #Flags for changing what the program outputs:
 showTrees = True
@@ -982,8 +982,8 @@ allsets, labelSamples = readOptimInputs(codeToSampleMap)
 inputSplits = getOptimInputSplits(allsets)
 
 #Read in the deletions/CNVs
-(patientSampleMap, samplePatientMap) = lps.getPatientSampleMap()
-deletions, CNVs = lps.loadDeletionsAndCNVs(samplePatientMap)
+(patientSampleMap, samplePatientMap) = lsl.getPatientSampleMap()
+deletions, CNVs = lsl.loadDeletionsAndCNVs(samplePatientMap)
 
 #Read in the mutations
 mutations = readMutations()
