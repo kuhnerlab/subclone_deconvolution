@@ -578,89 +578,53 @@ def calculateAncestralVsSkew(treesets):
     lineages vs. skew lineages.
     """
     print("\n\nCalculating ancestral vs. skew...")
-    stypes = ("ancestral_abs", "skew_abs", "ancestral_sq", "skew_sq")
+    #stypes = ("ancestral_abs", "skew_abs", "ancestral_sq", "skew_sq")
     
-    pairfile = open(pairdists, "w")
-    pairfile.write("Patient")
-    for stype in stypes:
-        pairfile.write("\t" + stype)
-        pairfile.write("\t" + stype + " significance")
-    pairfile.write("\n")
+#    pairfile = open(pairdists, "w")
+#    pairfile.write("Patient")
+#    for stype in stypes:
+#        pairfile.write("\t" + stype)
+#        pairfile.write("\t" + stype + " significance")
+#    pairfile.write("\n")
     
-    pairs_canonical_overall = {}
-    shuffled_pairs_overall = {}
-    for stype in stypes:
-        pairs_canonical_overall[stype] = {}
-        pairs_canonical_overall[stype]["average"] = 0
-        pairs_canonical_overall[stype]["sq_av"] = 0
-        pairs_canonical_overall[stype]["sum"] = 0
-        
-        shuffled_pairs_overall[stype] = {}
-        shuffled_pairs_overall[stype]["average"] = np.zeros(ntries)
-        shuffled_pairs_overall[stype]["sq_av"] = np.zeros(ntries)
-        shuffled_pairs_overall[stype]["sum"] = np.zeros(ntries)
+    pairs_canonical_overall_diff = 0
+    pairs_canonical_overall_anc = 0
+    pairs_canonical_overall_skew = 0
+    shuffled_pairs_overall_diff = np.zeros(ntries)
+    shuffled_pairs_overall_anc = np.zeros(ntries)
+    shuffled_pairs_overall_skew = np.zeros(ntries)
     for label in treesets:
         #Calculate the average distance between signatures on the three types of branch pairs
-        pairfile.write(label)
-#        print("Processing", label, "for ancestral vs. skew analysis.")
+        #pairfile.write(label)
+        print("Processing", label, "for ancestral vs. skew analysis.")
         treeset = treesets[label]
         pairsums, pair_significance, shuffled, npairs = treeset.sortPairDistances()
-        for stype in pairsums:
-            pairfile.write("\t" + str(pairsums[stype]))
-            pairfile.write("\t" + str(pair_significance[stype]))
-            pairs_canonical_overall[stype]["average"] += pairsums[stype] / npairs[stype]
-            pairs_canonical_overall[stype]["sq_av"] += pairsums[stype] / np.sqrt(npairs[stype])
-            pairs_canonical_overall[stype]["sum"] += pairsums[stype]
-            for repeat in range(treeset.ntries):
-                shuffled_pairs_overall[stype]["average"][repeat] += shuffled[stype][repeat] / npairs[stype]
-                shuffled_pairs_overall[stype]["sq_av"][repeat] += shuffled[stype][repeat] / np.sqrt(npairs[stype])
-                shuffled_pairs_overall[stype]["sum"][repeat] += shuffled[stype][repeat]
-        pairfile.write("\n")
-    pairfile.close()
-    print("Overall significance of pairwise comparisons of ancestral vs. skew:")
-    for stype in stypes:
-        print("\n\nDistances for", stype)
+#            pairfile.write("\t" + str(pairsums[stype]))
+#            pairfile.write("\t" + str(pair_significance[stype]))
+        pairs_canonical_overall_diff += (pairsums["ancestral_abs"]/npairs["ancestral_abs"]) - (pairsums["skew_abs"] / npairs["skew_abs"])
+        pairs_canonical_overall_anc += (pairsums["ancestral_abs"]/npairs["ancestral_abs"])
+        pairs_canonical_overall_skew += (pairsums["skew_abs"] / npairs["skew_abs"])
+        for repeat in range(treeset.ntries):
+            shuffled_pairs_overall_diff[repeat] += (shuffled["ancestral_abs"][repeat]/npairs["ancestral_abs"]) - (shuffled["skew_abs"][repeat] / npairs["skew_abs"])
+            shuffled_pairs_overall_anc[repeat] += (shuffled["ancestral_abs"][repeat]/npairs["ancestral_abs"]) 
+            shuffled_pairs_overall_skew[repeat] += (shuffled["skew_abs"][repeat] / npairs["skew_abs"])
+ #       pairfile.write("\n")
+ #   pairfile.close()
+    print("Overall significance of pairwise comparisons of ancestral vs. skew (diff, ancestral, then skew):")
+    for (canon, shuffled) in ((pairs_canonical_overall_diff, shuffled_pairs_overall_diff), (pairs_canonical_overall_anc, shuffled_pairs_overall_anc), (pairs_canonical_overall_skew, shuffled_pairs_overall_skew)):
         nsmaller  = 0
         nlarger = 0
         nsame = 0
         for repeat in range(ntries):
-            if shuffled_pairs_overall[stype]["average"][repeat] < pairs_canonical_overall[stype]["average"]:
+            if shuffled[repeat] < canon:
                 nsmaller += 1
-            elif shuffled_pairs_overall[stype]["average"][repeat] > pairs_canonical_overall[stype]["average"]:
+            elif shuffled[repeat] > canon:
                 nlarger += 1
             else:
                 nsame += 1
         significance = significanceOneTailed(nlarger, nsmaller, nsame, ntries)
-        print(stype, ": canonical distance = ", str(pairs_canonical_overall[stype]["average"]), "avg shuffled distance =",  str(np.average(shuffled_pairs_overall[stype]["average"])), "\nSignificance:", str(significance))
-    
-        print("\nSquare root 'average':")
-        nsmaller  = 0
-        nlarger = 0
-        nsame = 0
-        for repeat in range(ntries):
-            if shuffled_pairs_overall[stype]["sq_av"][repeat] < pairs_canonical_overall[stype]["sq_av"]:
-                nsmaller += 1
-            elif shuffled_pairs_overall[stype]["sq_av"][repeat] > pairs_canonical_overall[stype]["sq_av"]:
-                nlarger += 1
-            else:
-                nsame += 1
-        significance = significanceOneTailed(nlarger, nsmaller, nsame, ntries)
-        print(stype, ": canonical distance = ", str(pairs_canonical_overall[stype]["sq_av"]), "avg shuffled distance =",  str(np.average(shuffled_pairs_overall[stype]["sq_av"])), "\nSignificance:", str(significance))
-    
-        print("\nSums:")
-        nsmaller  = 0
-        nlarger = 0
-        nsame = 0
-        for repeat in range(ntries):
-            if shuffled_pairs_overall[stype]["sum"][repeat] < pairs_canonical_overall[stype]["sum"]:
-                nsmaller += 1
-            elif shuffled_pairs_overall[stype]["sum"][repeat] > pairs_canonical_overall[stype]["sum"]:
-                nlarger += 1
-            else:
-                nsame += 1
-        significance = significanceOneTailed(nlarger, nsmaller, nsame, ntries)
-        print(stype, ": canonical distance = ", str(pairs_canonical_overall[stype]["sum"]), "avg shuffled distance =",  str(np.average(shuffled_pairs_overall[stype]["sum"])), "\nSignificance:", str(significance))
-    
+        print("Canonical = ", str(canon), "Avg shuffled =",  str(np.average(shuffled)), "\nSignificance:", str(significance))
+
 
 def calculateTipVsInternal(treesets):
     """
@@ -723,8 +687,8 @@ sigids = readAndStoreSignatures(alltrees)
 treesets_nosplits = makeTreesets(alltrees, splits=False)
 
 calculateAverages(treesets_nosplits, sigids)
-calculateTrajectories(treesets_nosplits, sigids)
-calculateTrajectories(treesets_nosplits, sigids, excludes=[7])
+#calculateTrajectories(treesets_nosplits, sigids)
+#calculateTrajectories(treesets_nosplits, sigids, excludes=[7])
 calculateAncestralVsSkew(treesets_nosplits)
 
 
