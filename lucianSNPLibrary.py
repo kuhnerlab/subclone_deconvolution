@@ -16,11 +16,19 @@ patientSampleMapFile = "calling_evidence_odds.tsv"
 CNdir = "noninteger_processed_CNs/"
 
 def BiweightKernel(t):
+    """
+    A bounded kernel suitable for smoothing a histogram.
+    """
     if (abs(t) > 1.0):
         return 0.0
     return (15.0/16.0) * pow((1.0-pow(t,2)),2)
 
 def addKernelToHistogram(val, weight, histogram, kernelwidth, numpoints, binwidth):
+    """
+    The heart of the histogram smoother:  takes a given value (val), a weight
+    for that value (weight), and adds a kernel centered at that value, scaled
+    by the weight, to the histogram.
+    """
     digits = -int(numpy.floor(numpy.log10(abs(binwidth))))
     start = round(val-kernelwidth, digits)
     end = round(val+kernelwidth, digits)
@@ -36,6 +44,9 @@ def addKernelToHistogram(val, weight, histogram, kernelwidth, numpoints, binwidt
 
 
 def getKernelWidth(data, binwidth):
+    """
+    Estimates a reasonable kernel width, based on the quartiles of the data
+    """
     if (len(data) <= 1):
         return 2.78 * 20*binwidth
     highquart, lowquart = numpy.percentile(data, [75, 25])
@@ -44,6 +55,10 @@ def getKernelWidth(data, binwidth):
     return 2*minsig*pow(len(data), -0.2)
 
 def combineHistograms(newhist, fullhist, num, weight=1):
+    """
+    Takes two histograms and merges them (assumes a total of 'num' histograms
+    to merge, with a local weight of 'weight').
+    """
     for val in newhist:
         if (fullhist.get(val) == None):
             fullhist[val] = weight*newhist[val]/num
@@ -51,6 +66,13 @@ def combineHistograms(newhist, fullhist, num, weight=1):
             fullhist[val] += weight*newhist[val]/num
 
 def createPrintAndSaveHistogram(data, filename, binwidth, xdata="log2r", axis=(), show=True, savefig=False):
+    """
+    Given a set of input data (data), treated as a set of data points, 
+    and a given binwidth, create a smoothed histogram.  The binwidth shouldn't
+    be too small, or this function will run forever.  Can be set to display
+    the resulting histogram, or not, and to write out the data for the smoothed
+    histogram, if desired.
+    """
     if len(data) == 0:
         print("Cannot create a histogram with no data for file ", filename)
         return
@@ -82,6 +104,19 @@ def createPrintAndSaveHistogram(data, filename, binwidth, xdata="log2r", axis=()
     return hist
 
 def getPatientSampleMap():
+    """
+    Reads the (globally-set) patientSampleMapFile, and organizes its data for
+    use by other functions.  Creates a dictionary of patients to samples,
+    and another dictionary of samples to patient and ploidy.  (Ploidy here
+    refers to the fact that pASCAT will return estimated CNVs based on an
+    assumption of near-diploid copy number or near-tetraploid copy number,
+    and the decision about which to use must be arrived at separately.)
+    The file we typically use contains all the indirect data we use to 
+    guess whether a given sample's diploid or tetraploid results are better,
+    culminating in the next-to-last column the estimated odds of the diploid 
+    solution being better than the tetraploid solution, and the actually-last
+    column being the final by-hand call of what the best solution should be.
+    """
     s2p = {}
     p2s = {}
         
@@ -109,6 +144,12 @@ def getPatientSampleMap():
     return p2s, s2p
 
 def loadDeletions(samplePatientMap, CNdir=CNdir):
+    """
+    Searches the CNVs in CNdir (default defined above), and returns a 
+    dictionary by patient, sample, and chromosome of the deletions (both
+    single and double deletions) for all patients and samples (as listed
+    in the samplePatientMap).
+    """
     deletions = {}
     for sample in samplePatientMap:
         patient, ploidy = samplePatientMap[sample]
@@ -134,6 +175,15 @@ def loadDeletions(samplePatientMap, CNdir=CNdir):
 
 
 def loadDeletionsAndCNVs(samplePatientMap, CNdir=CNdir):
+    """
+    Searches the CNVs in CNdir (default defined above), and returns a 
+    dictionary by patient, sample, and chromosome of the deletions (both
+    single and double deletions) for all patients and samples (as listed
+    in the samplePatientMap), and a separate dictionary of all calls for
+    all segments in the sample.  This includes wild-type "1,1"-style
+    calls, so if a site is not found in any of the segments in the returned
+    dictionary, this means that the number of copies of that site is unknown.
+    """
     deletions = {}
     CNVs = {}
     for sample in samplePatientMap:
