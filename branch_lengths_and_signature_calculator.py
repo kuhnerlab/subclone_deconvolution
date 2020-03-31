@@ -29,7 +29,7 @@ import lucianSNPLibrary as lsl
 showTrees = True
 needDoubleSplitInfo = False
 
-onlysomepatients = True
+onlysomepatients = False
 somepatients = ["184"]
 #somepatients = ["387", "483", "609", "611", "626", "631", "635", "652", "852"] #double split patients
 
