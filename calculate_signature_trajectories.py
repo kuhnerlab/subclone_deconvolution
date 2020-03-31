@@ -687,8 +687,10 @@ sigids = readAndStoreSignatures(alltrees)
 treesets_nosplits = makeTreesets(alltrees, splits=False)
 
 calculateAverages(treesets_nosplits, sigids)
-#calculateTrajectories(treesets_nosplits, sigids)
-#calculateTrajectories(treesets_nosplits, sigids, excludes=[7])
+calculateTrajectories(treesets_nosplits, sigids)
+#Test this again, but exclude the one significant signature (18, position 7), 
+# and re-scale the remaining ones.
+calculateTrajectories(treesets_nosplits, sigids, excludes=[7])
 calculateAncestralVsSkew(treesets_nosplits)
 
 
