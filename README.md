@@ -4,6 +4,8 @@ In our analysis of data from multiple samples taken from patients with Barrett's
 
 This repository is a collection of those programs and scripts.  The data itself is not directly downloadable, as it contains genetic information from living individuals who have not consented to having their genetic information disclosed in this way, but is available to researchers of Barretts Esophagus as part of the database of Genotypes and Phenotypes (dbGaP) as of October 2020, at the URL http://www.ncbi.nlm.nih.gov/projects/gap/cgi-bin/study.cgi?study_id=phs001912.v1.p1 
 
+The phylogenetic trees generated from these scripts and subsequent hand-deconvolution can be found at https://datadryad.org/stash/dataset/doi:10.5061/dryad.866t1g1p1
+
 Required data files/directories (not included):
 <dl>
 <dt> P01CA91955-WGS80-Full-Pilot-Samples.csv 
